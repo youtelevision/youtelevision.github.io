@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>YouTV</title>
+  <title>YouTelevision</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -61,7 +61,7 @@
   <h1>YouTV</h1>
   <div>
     <input type="text" id="searchInput" placeholder="Search YouTube...">
-    <button onclick="searchVideos()">Search</button>
+    <button onclick="startSearch()">Search</button>
   </div>
 </header>
 
@@ -70,6 +70,11 @@
 <script>
 const API_KEY = 'AIzaSyDeI8KBaKlngQuTycPDCu4uC6ogNuTVLAs';
 const videoContainer = document.getElementById('videoContainer');
+
+let nextPageToken = '';
+let currentQuery = '';
+let currentMode = 'popular'; // or 'search'
+let isLoading = false;
 
 function createVideoCard(video) {
   const videoId = video.id.videoId || video.id;
@@ -85,49 +90,63 @@ function createVideoCard(video) {
   `;
 }
 
-async function searchVideos() {
-  const query = document.getElementById('searchInput').value;
-  if (!query) return;
-  videoContainer.innerHTML = 'Searching...';
-
-  try {
-    const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&q=${encodeURIComponent(query)}&key=${API_KEY}`);
-    const data = await response.json();
-
-    if (data.items && data.items.length > 0) {
-      displayVideos(data.items);
-    } else {
-      videoContainer.innerHTML = '<p>No videos found.</p>';
-    }
-  } catch (error) {
-    console.error('Search error:', error);
-    videoContainer.innerHTML = '<p>Error loading search results.</p>';
-  }
-}
-
-async function loadPopularVideos() {
-  videoContainer.innerHTML = 'Loading recommended videos...';
-  try {
-    const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&maxResults=12&regionCode=US&key=${API_KEY}`);
-    const data = await response.json();
-
-    if (data.items && data.items.length > 0) {
-      displayVideos(data.items);
-    } else {
-      videoContainer.innerHTML = '<p>No recommended videos found.</p>';
-    }
-  } catch (error) {
-    console.error('Recommendation error:', error);
-    videoContainer.innerHTML = '<p>Error loading recommended videos.</p>';
-  }
-}
-
 function displayVideos(videos) {
-  videoContainer.innerHTML = videos.map(createVideoCard).join('');
+  const html = videos.map(createVideoCard).join('');
+  videoContainer.innerHTML += html;
 }
 
-// Load popular videos on page load
-loadPopularVideos();
+async function fetchVideos(url) {
+  if (isLoading) return;
+  isLoading = true;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    nextPageToken = data.nextPageToken || '';
+    if (data.items && data.items.length > 0) {
+      displayVideos(data.items);
+    } else {
+      videoContainer.innerHTML += '<p>No videos found.</p>';
+    }
+  } catch (error) {
+    console.error('Fetch error:', error);
+    videoContainer.innerHTML += '<p>Error loading videos.</p>';
+  }
+
+  isLoading = false;
+}
+
+function loadMore() {
+  let url = '';
+  if (currentMode === 'popular') {
+    url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&maxResults=12&pageToken=${nextPageToken}&regionCode=US&key=${API_KEY}`;
+  } else {
+    url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&pageToken=${nextPageToken}&q=${encodeURIComponent(currentQuery)}&key=${API_KEY}`;
+  }
+
+  fetchVideos(url);
+}
+
+function startSearch() {
+  currentQuery = document.getElementById('searchInput').value;
+  currentMode = currentQuery ? 'search' : 'popular';
+  nextPageToken = '';
+  videoContainer.innerHTML = '';
+  loadMore();
+}
+
+function handleScroll() {
+  const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+  if (scrollTop + clientHeight >= scrollHeight - 200) {
+    loadMore();
+  }
+}
+
+window.addEventListener('scroll', handleScroll);
+
+// Load popular videos on startup
+startSearch();
 </script>
 
 </body>
