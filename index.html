@@ -5,148 +5,148 @@
   <title>YouTelevision</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
       background-color: #111;
-      color: #fff;
+      color: white;
+      font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
     }
+
     header {
-      padding: 1em;
       background-color: #202020;
+      padding: 1em;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    input[type="text"] {
-      width: 60%;
+
+    header img {
+      height: 50px;
+    }
+
+    input {
       padding: 0.5em;
       font-size: 1em;
+      width: 60%;
+      border-radius: 4px;
       border: none;
-      border-radius: 5px;
     }
+
     button {
-      padding: 0.5em 1em;
-      margin-left: 10px;
-      background-color: #FF0000;
+      background-color: #ff0000;
       color: white;
+      padding: 0.5em 1em;
       border: none;
-      border-radius: 5px;
+      border-radius: 4px;
       cursor: pointer;
+      margin-left: 10px;
     }
+
     .videos {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 1em;
       padding: 1em;
     }
+
     .video {
       background-color: #181818;
       padding: 1em;
       border-radius: 8px;
     }
-    .video iframe {
+
+    iframe {
       width: 100%;
       height: 200px;
-      border-radius: 5px;
-    }
-    .video h4 {
-      margin: 0.5em 0 0;
+      border-radius: 6px;
     }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>YouTV</h1>
+  <img src="YouTelevision-removebg-preview (1).png" alt="YouTelevision Logo">
   <div>
-    <input type="text" id="searchInput" placeholder="Search YouTube...">
+    <input type="text" id="searchInput" placeholder="Search videos...">
     <button onclick="startSearch()">Search</button>
   </div>
 </header>
 
-<main class="videos" id="videoContainer">Loading videos...</main>
+<main class="videos" id="videoContainer">Loading...</main>
 
 <script>
 const API_KEY = 'AIzaSyDeI8KBaKlngQuTycPDCu4uC6ogNuTVLAs';
-const videoContainer = document.getElementById('videoContainer');
+const container = document.getElementById('videoContainer');
 
 let nextPageToken = '';
 let currentQuery = '';
-let currentMode = 'popular'; // or 'search'
-let isLoading = false;
+let mode = 'popular';
+let loading = false;
 
 function createVideoCard(video) {
-  const videoId = video.id.videoId || video.id;
+  const id = video.id.videoId || video.id;
   const title = video.snippet.title;
   const channel = video.snippet.channelTitle;
-  const iframe = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+
   return `
     <div class="video">
-      ${iframe}
+      <iframe src="https://www.youtube.com/embed/${id}" frameborder="0" allowfullscreen></iframe>
       <h4>${title}</h4>
-      <p>by ${channel}</p>
+      <p>${channel}</p>
     </div>
   `;
 }
 
-function displayVideos(videos) {
-  const html = videos.map(createVideoCard).join('');
-  videoContainer.innerHTML += html;
+function renderVideos(items) {
+  container.innerHTML += items.map(createVideoCard).join('');
 }
 
-async function fetchVideos(url) {
-  if (isLoading) return;
-  isLoading = true;
+async function fetchVideos() {
+  if (loading) return;
+  loading = true;
+
+  let endpoint = '';
+  if (mode === 'popular') {
+    endpoint = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&maxResults=10&regionCode=US&pageToken=${nextPageToken}&key=${API_KEY}`;
+  } else {
+    endpoint = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(currentQuery)}&type=video&maxResults=10&pageToken=${nextPageToken}&key=${API_KEY}`;
+  }
 
   try {
-    const response = await fetch(url);
-    const data = await response.json();
+    const res = await fetch(endpoint);
+    const data = await res.json();
 
-    nextPageToken = data.nextPageToken || '';
-    if (data.items && data.items.length > 0) {
-      displayVideos(data.items);
+    if (data.error) {
+      container.innerHTML += `<p>Error: ${data.error.message}</p>`;
+      console.error(data.error);
     } else {
-      videoContainer.innerHTML += '<p>No videos found.</p>';
+      nextPageToken = data.nextPageToken || '';
+      renderVideos(data.items);
     }
-  } catch (error) {
-    console.error('Fetch error:', error);
-    videoContainer.innerHTML += '<p>Error loading videos.</p>';
+  } catch (err) {
+    console.error('Fetch error:', err);
+    container.innerHTML += `<p>Error loading videos.</p>`;
   }
 
-  isLoading = false;
-}
-
-function loadMore() {
-  let url = '';
-  if (currentMode === 'popular') {
-    url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&maxResults=12&pageToken=${nextPageToken}&regionCode=US&key=${API_KEY}`;
-  } else {
-    url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=12&pageToken=${nextPageToken}&q=${encodeURIComponent(currentQuery)}&key=${API_KEY}`;
-  }
-
-  fetchVideos(url);
+  loading = false;
 }
 
 function startSearch() {
-  currentQuery = document.getElementById('searchInput').value;
-  currentMode = currentQuery ? 'search' : 'popular';
+  const input = document.getElementById('searchInput').value.trim();
+  currentQuery = input;
+  mode = input ? 'search' : 'popular';
+  container.innerHTML = '';
   nextPageToken = '';
-  videoContainer.innerHTML = '';
-  loadMore();
+  fetchVideos();
 }
 
-function handleScroll() {
-  const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-  if (scrollTop + clientHeight >= scrollHeight - 200) {
-    loadMore();
+window.addEventListener('scroll', () => {
+  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
+    fetchVideos();
   }
-}
+});
 
-window.addEventListener('scroll', handleScroll);
-
-// Load popular videos on startup
-startSearch();
+startSearch(); // Load popular by default
 </script>
 
 </body>
